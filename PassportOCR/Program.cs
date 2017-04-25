@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,6 +15,7 @@ namespace PassportOCR
         public const string ACTUAL = "actual";
         public const string MISS_COUNT = "missCount";
         public const string MISS_PAIR = "missPair";
+        public const string MRZ_RECT = "mrzRect";
 
         public const string MISS_PAIR_SEPARATOR = "|";
 
@@ -33,7 +35,8 @@ namespace PassportOCR
             foreach (Dictionary<string, object> inputData in inputDataList)
             {
                 string iunputFilePath = (string)(inputData[PASSPORT_IMAGE]);
-                string ocrResult = ocrEngine.Go(iunputFilePath, 566, 146, 655, 1023);
+                Rectangle rect = (Rectangle)(inputData[MRZ_RECT]);
+                string ocrResult = ocrEngine.Go(iunputFilePath, rect);
 
                 string expected = (string)(inputData[EXPECTED]);
                 Dictionary<string, object> compareResult = Compare(ocrResult, expected);
@@ -68,12 +71,24 @@ namespace PassportOCR
                 while (sr.Peek() >= 0)
                 {
                     string line = sr.ReadLine();
+
+                    if(line.StartsWith("//"))
+                    {
+                        continue;
+                    }
+
                     string[] parserd = line.Split(',');
+
+                    int x = int.Parse(parserd[2]);
+                    int y = int.Parse(parserd[3]);
+                    int width = int.Parse(parserd[4]) - x;
+                    int height = int.Parse(parserd[5]) - y;
 
                     Dictionary<string, object> inputData = new Dictionary<string, object>
                     {
                         { PASSPORT_IMAGE, parserd[0] },
-                        { EXPECTED, parserd[1].Replace('&', '\n')}
+                        { EXPECTED, parserd[1].Replace('&', '\n')},
+                        { MRZ_RECT, new Rectangle(x, y, width, height)}
                     };
                     inputDataList.Add(inputData);
                 }
@@ -91,14 +106,16 @@ namespace PassportOCR
 
             int missCount = 0;
             List<string> missPair = new List<string>();
-            for (int i=0; i<actual.Length; i++)
-            {
-                if(actual[i] != expected[i])
-                {
-                    missCount++;
-                    missPair.Add(string.Format("{0}{1}{2}", expected[i], MISS_PAIR_SEPARATOR, actual[i]));
-                }
-            }
+
+            string[] actualLines = actual.Split('\n');
+            string[] expectedLine = expected.Split('\n');
+
+            int firstLine = GetNextLine(actualLines, 0);
+            missCount += CompareCore(actualLines[firstLine], expectedLine[0], missPair);
+
+            int secondLine = GetNextLine(actualLines, firstLine + 1);
+            missCount += CompareCore(actualLines[secondLine], expectedLine[1], missPair);
+
             compareResult.Add(MISS_COUNT, missCount);
             compareResult.Add(MISS_PAIR, missPair);
 
@@ -113,13 +130,39 @@ namespace PassportOCR
                 {
                     string dataStr = string.Format("{0},{1},{2}", data[MISS_COUNT], data[EXPECTED], data[ACTUAL]);
                     List<string> missPair = (List<string>)(data[MISS_PAIR]);
-                    if(missPair != null)
+                    if (missPair != null)
                     {
                         dataStr = string.Format("{0},{1}", dataStr, string.Join(",", missPair));
                     }
                     sw.WriteLine(dataStr);
                 }
             }
+        }
+
+        static int GetNextLine(string[] lines, int startLine)
+        {
+            for (int i = startLine; i < lines.Length; i++)
+            {
+                if (string.IsNullOrEmpty(lines[i]) == false)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        static int CompareCore(string actual, string expected, List<string> missPair)
+        {
+            int missCount = 0;
+            for (int i = 0; i < actual.Length; i++)
+            {
+                if (actual[i] != expected[i])
+                {
+                    missCount++;
+                    missPair.Add(string.Format("{0}{1}{2}", expected[i], MISS_PAIR_SEPARATOR, actual[i]));
+                }
+            }
+            return missCount;
         }
     }
 }

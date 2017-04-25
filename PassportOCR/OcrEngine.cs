@@ -28,6 +28,11 @@ namespace PassportOCR
             return "Todo implement";
         }
 
+        virtual public string Go(string filePath, Rectangle rect)
+        {
+            return "Todo implement";
+        }
+
         protected string GetMrz(string text)
         {
             Match match = Regex.Match(text, "^(?<mrz>.*<.*?)$", RegexOptions.Singleline);
@@ -43,10 +48,12 @@ namespace PassportOCR
             return GetMrz(page.GetText());
         }
 
-        override public string Go(string filePath, int top, int left, int buttom, int right)
+        override public string Go(string filePath, Rectangle rect)
         {
-            var page = tesseract_.Process(new Bitmap(filePath), new Rect(left, top, right-left, buttom-top));
-            return page.GetText().Trim('\n');
+            using (Page page = tesseract_.Process(new Bitmap(filePath), new Rect(rect.X, rect.Y, rect.Width, rect.Height)))
+            {
+                return page.GetText().Trim('\n');
+            }
         }
 
         private TesseractEngine tesseract_ = new TesseractEngine(Directory.GetCurrentDirectory() + "\\tesseract", "eng");
