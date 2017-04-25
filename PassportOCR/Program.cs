@@ -78,6 +78,10 @@ namespace PassportOCR
                     }
 
                     string[] parserd = line.Split(',');
+                    if(parserd == null || parserd.Length < 6)
+                    {
+                        continue;
+                    }
 
                     int x = int.Parse(parserd[2]);
                     int y = int.Parse(parserd[3]);
